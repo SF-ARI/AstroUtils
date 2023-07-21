@@ -1,0 +1,13 @@
+astropy
+numpy
+matplotlib
+spectral_cube
+pyspeckit
+lmfit
+tqdm
+
+[docs]
+sphinx-astropy
+
+[test]
+pytest-astropy

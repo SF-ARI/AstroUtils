@@ -44,7 +44,7 @@ class gradients(object):
     @staticmethod
     def compute(filename, image=True, errimage=None, columns=[],
                 outputdir='./', outputformat='ascii',
-                physical_units=True, dataunit='km/s',
+                physical_units=True,
                 wcs=None, distance=None,
                 compute_over_map=True,
                 shape=None, blocksize=5, minnpix=None, pinit=None,
@@ -81,8 +81,8 @@ class gradients(object):
         wcs : astropy.wcs
             world coordinate system for conversion to physical units
         distance : float with units
-            provide the distance as with corresponding units (use astropy.units)
-            this is used to convert the gradients into physical units
+            provide the distance in parsecs this is used to convert the gradients
+            into physical units
         compute_over_map : bool
             compute the gradient over entire data set or over segments of data
             default=True which means the computation will be performed over the
@@ -112,6 +112,7 @@ class gradients(object):
         self.columns=columns
         self.outputdir=outputdir
         self.outputformat=outputformat
+        self.physical_units=physical_units
         self.wcs=wcs
         self.distance=distance
         self.compute_over_map=compute_over_map
@@ -131,10 +132,18 @@ class gradients(object):
         # unpack the data for gradient computation
         self.data=self.unpack_data()
         # get number of measurements for grad comp
-        nummeas=1 if self.compute_over_map  else np.shape(self.data)[1]
+        nummeas=1 if self.compute_over_map else np.shape(self.data)[1]
         self.gradtab=self.calculate_gradients(nummeas=nummeas)
 
-        print(self.gradtab)
+        id=[j for j in range(len(self.gradtab['x'])) if ((self.gradtab['x'][j]==489.0) & (self.gradtab['y'][j]==330.0)) ]
+
+        # at this point we have a table of gradients in data unit per pixel units
+        # now we can convert this to physical units
+        if self.physical_units:
+            conversion_factor=self.compute_conversion_factor()
+            self.gradtab=self.modify_gradtab(conversion_factor)
+
+
 
     def unpack_data(self):
         """
@@ -237,7 +246,6 @@ class gradients(object):
                     gradtab.add_row(cols)
 
         return gradtab
-
 
     def return_cols(self, x, y, model, errors):
         """
@@ -384,3 +392,42 @@ class gradients(object):
 
         """
         return mx*x + my*y + c
+
+    def compute_conversion_factor(self):
+        """
+        Here we are going to compute the conversion factor to convert from pixel
+        units to world coordinates
+        """
+        from astropy import wcs
+        pixelsize_deg=wcs.utils.proj_plane_pixel_scales(self.wcs)[0]
+        pixelsize_parsec=(pixelsize_deg/np.rad2deg(1))*self.distance
+
+        return 1./pixelsize_parsec
+
+    def modify_gradtab(self,conversion_factor):
+        """
+        modify table by converting gradients to world coordinates
+
+        parameters
+        ----------
+        conversion_factor : float
+            conversion factor to go from pixel coords to world coords
+        """
+        from astropy.table import Column, Row
+        columnids=[2,3,4,5,6,7]
+        gradtab_headings=['x', 'y', 'grad', 'err grad', 'grad_x', 'err_grad_x', 'grad_y', 'err_grad_y', 'theta', 'err theta']
+        for j in range(len(columnids)):
+            self.gradtab[gradtab_headings[columnids[j]]]=self.gradtab[gradtab_headings[columnids[j]]]*conversion_factor
+
+        # in pixel coords x is +ve but the reverse is true in world coords.
+        # invert the sign
+        self.gradtab['grad_x']=self.gradtab['grad_x']*-1.0
+        self.gradtab['theta']=self.gradtab['theta']*-1.0
+        # create world coords columns
+        worldx, worldy= self.wcs.all_pix2world(self.gradtab['x'],self.gradtab['y'],1)
+        worldxcol,worldycol = Column(worldx, 'worldx'), Column(worldy, 'worldy')
+        # lets add the world coords to the table
+        self.gradtab.add_column(worldxcol, index=2)
+        self.gradtab.add_column(worldycol, index=3)
+
+        return self.gradtab

@@ -23,13 +23,10 @@ class gradients(object):
         self.distance=None
         self.outputdir=None
         self.outputformat=None
-
         self.compute_over_map=None
         self.blocksize=None
         self.minnpix=None
-
         self.pinit=None
-
         self.grad, self.grad_err=None,None
         self.angle, self.angle_err=None,None
         self.gradx, self.gradx_err=None,None
@@ -143,7 +140,9 @@ class gradients(object):
             conversion_factor=self.compute_conversion_factor()
             self.gradtab=self.modify_gradtab(conversion_factor)
 
-
+        # Todo: add output:
+        # simplest is to write grad tab
+        # need to also populate arrays for fits output if selected
 
     def unpack_data(self):
         """
@@ -251,6 +250,17 @@ class gradients(object):
         """
         Returns a list of gradient information in a format that can be added to
         the table
+
+        parameters
+        ----------
+        x : float
+            x pixel coordinate
+        y : float
+            y pixel coordinate
+        model : arr
+            model result returned from lmfit
+        errors : arr
+            model errors returned from lmfit
         """
         import uncertainties.unumpy as unp
 

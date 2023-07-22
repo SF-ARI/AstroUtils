@@ -94,6 +94,48 @@ class gradients(object):
         report_fit : bool
             prints the lmfit result to terminal
 
+        Example usage:
+
+        # example for fits image
+
+        import numpy as np
+        from astropy.io import fits
+        from astropy import wcs
+        from AstroUtils.gradMod import gradients
+
+        filenamefits='./myfilename.fits' # filename including path
+        shape=np.shape(fits.open(filenamefits)[0].data) # get the shape of the data array
+        header=fits.open(filenamefits)[0].header # get the fits header
+        wcsfits=wcs.WCS(header) # get the world coordinate system
+        distance=10.0 # distance provided in pc
+
+        grad = gradients.compute(filename, image=True, errimage=None,
+                                 output=True, outputdir='./', outputfilename='gradtab.dat',
+                                 physical_units=True,
+                                 wcs=wcsfits, distance=distance,
+                                 compute_over_map=False,
+                                 shape=shape, blocksize=5, minnpix=15)
+
+        # example for ascii file
+
+        import numpy as np
+        from astropy.io import fits
+        from astropy import wcs
+        from AstroUtils.gradMod import gradients
+
+        filenameascii='./myfilename.dat' # filename including path
+        filenamefits='./myfilename.fits' # filename from which data in ascii table was derived
+        shape=np.shape(fits.open(filenamefits)[0].data) # get the shape of the data array
+        header=fits.open(filenamefits)[0].header # get the fits header
+        wcsfits=wcs.WCS(header) # get the world coordinate system
+        distance=10.0 # distance provided in pc
+
+        grad = gradients.compute(filenameascii, image=False, columns=[1,2,5,6],
+                                 output=True, outputdir='./', outputfilename='gradtab.dat',
+                                 physical_units=True,
+                                 wcs=wcsfits, distance=distance,
+                                 compute_over_map=False,
+                                 shape=shape, blocksize=5, minnpix=15)
 
         """
 

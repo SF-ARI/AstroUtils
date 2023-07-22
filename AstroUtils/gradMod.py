@@ -27,10 +27,6 @@ class gradients(object):
         self.blocksize=None
         self.minnpix=None
         self.pinit=None
-        self.grad, self.grad_err=None,None
-        self.angle, self.angle_err=None,None
-        self.gradx, self.gradx_err=None,None
-        self.grady, self.grady_err=None,None
 
         def static_warning(self, *args, **kwargs):
             err = "Invalid use of static method. Try grad=gradients.compute(filename)"
@@ -40,7 +36,7 @@ class gradients(object):
 
     @staticmethod
     def compute(filename, image=True, errimage=None, columns=[],
-                outputdir='./', outputformat='ascii',
+                output=True, outputdir='./', outputfilename='gradtab.dat',
                 physical_units=True,
                 wcs=None, distance=None,
                 compute_over_map=True,
@@ -65,11 +61,12 @@ class gradients(object):
             format, please pass the x,y coordinates in pixel coordinates. Note
             that you can also pass a column of uncertainties. It will be assumed
             that this is index=3 in the list
+        output : bool
+            indicate if you would like to write the data to file default=True
         outputdir : str
             output directory for output files
-        outputformat : str
-            output format for the gradient computation default='ascii' - a
-            tabular output of measurements, though 'fits' or 'both' are accepted
+        outputfilename : str
+            name of the outputfile name
         physical_units : bool
             gradient computation is performed on pixel units toggle this and use
             keywords below to convert gradients to physical units
@@ -107,8 +104,6 @@ class gradients(object):
         self.image=image
         self.errimage=errimage
         self.columns=columns
-        self.outputdir=outputdir
-        self.outputformat=outputformat
         self.physical_units=physical_units
         self.wcs=wcs
         self.distance=distance
@@ -132,17 +127,15 @@ class gradients(object):
         nummeas=1 if self.compute_over_map else np.shape(self.data)[1]
         self.gradtab=self.calculate_gradients(nummeas=nummeas)
 
-        id=[j for j in range(len(self.gradtab['x'])) if ((self.gradtab['x'][j]==489.0) & (self.gradtab['y'][j]==330.0)) ]
-
         # at this point we have a table of gradients in data unit per pixel units
         # now we can convert this to physical units
         if self.physical_units:
             conversion_factor=self.compute_conversion_factor()
             self.gradtab=self.modify_gradtab(conversion_factor)
 
-        # Todo: add output:
-        # simplest is to write grad tab
-        # need to also populate arrays for fits output if selected
+        # output
+        if output:
+            self.output_ascii(outputdir, outputfilename)
 
     def unpack_data(self):
         """
@@ -195,6 +188,9 @@ class gradients(object):
         gradtab=Table(meta={'name': 'params'}, names=gradtab_headings)
 
         if self.compute_over_map:
+            if self.pinit is None:
+                self.pinit = self.data_pinit(self.data[0,:], self.data[1,:], self.data[2,:])
+
             if np.sum(self.data[3,:])==0.0:
                 model, errors, result=self.fit(self.data[0,:],self.data[1,:],self.data[2,:],
                                                pinit=self.pinit, report_fit=self.report_fit)
@@ -230,6 +226,10 @@ class gradients(object):
                 # now if the size of the neighbouring pixel list is greater than
                 # our minnpix value, compute the local gradient
                 if np.size(idn)>=self.minnpix:
+
+                    if self.pinit is None:
+                        self.pinit = self.data_pinit(self.data[0,idn], self.data[1,idn], self.data[2,idn])
+
                     if np.sum(self.data[3,:])==0.0:
                         model, errors, result=self.fit(self.data[0,idn],self.data[1,idn],self.data[2,idn],
                                                        pinit=self.pinit, report_fit=False)
@@ -245,6 +245,31 @@ class gradients(object):
                     gradtab.add_row(cols)
 
         return gradtab
+
+    def data_pinit(self, x, y, data):
+        """
+        initialise the minimisation with pinit derived from data if pinit is
+        not provided by the user
+
+        parameters
+        ----------
+        x : arr
+            x pixel coordinates
+        y : arr
+            y pixel coordinates
+        data : arr
+            data array
+        """
+
+        x_sort_unique, y_sort_unique=np.sort(np.unique(x)), np.sort(np.unique(y))
+        xlow, xupp=x_sort_unique[0], x_sort_unique[-1]
+        ylow, yupp=y_sort_unique[0], y_sort_unique[-1]
+        dxlow, dxupp = np.nanmin(data[(x==xlow)]), np.nanmax(data[(x==xupp)])
+        dylow, dyupp = np.nanmin(data[(y==ylow)]), np.nanmax(data[(y==yupp)])
+        mx, my = (dxlow-dxupp)/(xupp-xlow), (dylow-dyupp)/(yupp-ylow)
+        c=np.nanmean(data)
+
+        return [mx,my,c]
 
     def return_cols(self, x, y, model, errors):
         """
@@ -441,3 +466,11 @@ class gradients(object):
         self.gradtab.add_column(worldycol, index=3)
 
         return self.gradtab
+
+    def output_ascii(self, outputdir, outputfilename):
+        """
+        write grad tab to file
+        """
+        import os
+        outputfile=os.path.join(outputdir+outputfilename)
+        self.gradtab.write(outputfile,format='ascii',overwrite=True,delimiter='\t')

@@ -5,6 +5,8 @@ A collection of astronomy modules
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
+A collection of useful astronomy modules compiled by the SaFARI group at the 
+Astrophysics Research Institute of Liverpool John Moores University.
 
 License
 -------
